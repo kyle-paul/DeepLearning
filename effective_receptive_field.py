@@ -10,25 +10,37 @@ class ERF:
     def __init__(self):
         self.model = None
         self.list_models = timm.list_models()
-        self.app = gr.Interface(
-            title="Effective Receptive Field",
-            fn=self.deep_visualization,
-            inputs = [
-                gr.Image(type="pil", examples=""),
-                gr.Slider(minimum=0, maximum=1, label="Positive Thresholding (%)"),
-                gr.Slider(minimum=0, maximum=1, label="Negative Thresholding (%)"),
-                gr.Slider(minimum=0, maximum=1, label="Opacity Controller"),
-                gr.Dropdown(choices=self.list_models, label="Select models")
-            ],
-            outputs=[
-                gr.Image(label="Receptive Field Analysis"),
-                gr.Label(num_top_classes=10, label="Classification"),
-            ]
-        )
-        self.read_labels()
+        
+        with gr.Blocks() as self.app:
+            with gr.Tab("Effective Receptive Field"):
+                self.read_labels()
+                self.tab1 = gr.Interface(
+                    title="Effective Receptive Field",
+                    fn=self.deep_visualization,
+                    inputs = [
+                        gr.Image(type="pil"),
+                        gr.Slider(minimum=0, maximum=1, value=0.15, label="Positive Thresholding (%)"),
+                        gr.Slider(minimum=0, maximum=1, value=0.15, label="Negative Thresholding (%)"),
+                        gr.Slider(minimum=0, maximum=1, value=0.6, label="Opacity Controller"),
+                        gr.Dropdown(choices=self.list_models, value="resnet50", label="Select models")
+                    ],
+                    outputs=[
+                        gr.Image(label="Receptive Field Analysis"),
+                        gr.Label(num_top_classes=10, label="Classification"),
+                    ],
+                    examples=[
+                        ["samples/cock.jpg", 0.15, 0.15, 0.6, "resnet50"],
+                        ["samples/cats.jpg", 0.15, 0.15, 0.6, "vgg16"],
+                        ["samples/goldfish.jpeg", 0.15, 0.15, 0.6, "densenet161"]
+                    ],
+                )
+                
+            with gr.Tab("Deep Visualization"):
+                gr.Markdown("Deep Visualization")
+        
     
     def read_labels(self):
-        with open("imagenet1k.txt", 'r') as file:
+        with open("assets/imagenet1k.txt", 'r') as file:
             lines = file.readlines()
             self.labels = [line.strip().strip('"')[:-2] for line in lines]
     
@@ -63,7 +75,7 @@ class ERF:
         
         # Effective receptive field
         self.eff_recep_field(x, z)
-        eff_recep_field = Image.open("eff_recep_field.png")
+        eff_recep_field = Image.open(".cache/eff_recep_field.png")
         
         return eff_recep_field, confidences
                 
@@ -90,7 +102,7 @@ class ERF:
         plt.imshow(neg_grads, alpha=self.opacity, cmap="gray")
         
         plt.axis('off')
-        plt.savefig('eff_recep_field.png', bbox_inches='tight', pad_inches=0)
+        plt.savefig('.cache/eff_recep_field.png', bbox_inches='tight', pad_inches=0)
         
     
     def run(self):
