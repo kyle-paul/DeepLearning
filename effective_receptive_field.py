@@ -45,7 +45,7 @@ class ERF:
             self.labels = [line.strip().strip('"')[:-2] for line in lines]
     
     def initialize_model(self):
-        self.model = timm.create_model(self.option, pretrained=True)
+        self.model = timm.create_model(self.option, pretrained=True).cuda()
         
     def preprocess(self):
         preprocess_cfg = timm.data.resolve_data_config(self.model.pretrained_cfg)
@@ -65,7 +65,8 @@ class ERF:
         self.preprocess()
         
         # Forward pass
-        x = self.transform(image).unsqueeze(0).requires_grad_(True)
+        x = self.transform(image).unsqueeze(0).requires_grad_(True).cuda()
+        x.retain_grad()
         y = self.model(x)
         z = self.model.forward_features(x)
         
@@ -86,7 +87,7 @@ class ERF:
         loss.backward()
         
         # take the mean gradient between channels
-        gradients = torch.mean(x.grad[0], dim=0).detach().numpy()
+        gradients = torch.mean(x.grad[0], dim=0).detach().cpu().numpy()
 
         # seperate pos/neg to avoid imbalance
         pos_grads = np.where(gradients >= 0, gradients, 0)
