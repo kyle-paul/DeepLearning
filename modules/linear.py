@@ -1,38 +1,58 @@
+import torch
+import torch.nn as nn
 import numpy as np
-from utils import softmax, cross_entropy_loss, compute_gradients
-
-
+from utils import CrossEntropy
 
 class Linear:
-    def __init__(self, input_dim, output_dim, bias=True):
-        limit = np.sqrt(6 / input_dim)
-        self.weights = np.random.uniform(-limit, limit, (input_dim, output_dim))
-        if bias:
-            self.biases = np.zeros((1, output_dim))
+    def __init__(self, in_features, out_features, bias=True):
+        limit = np.sqrt(6 / in_features)
+        self.weights = np.random.uniform(-limit, limit, (in_features, out_features))
     
     def forward(self, x):
-        self.last_input = x
-        return np.dot(x, self.weights) + self.biases
+        self.x = x
+        return np.dot(x, self.weights)
     
-    def backward(self, dW, db, learning_rate=0.01):
-        self.weights -= learning_rate * dW
-        self.biases -= learning_rate * db
+    def backward(self, grad_logits):
+        self.x_T = self.x.reshape(x.shape[1], x.shape[0])
+        self.grad_weights = grad_logits * self.x_T
+        self.grad_x = np.dot(grad_logits, self.weights.T)
+        return self.grad_x, self.grad_weights
         
 
-x = np.random.randn(1, 128)
-y_true = np.array([2]) 
+if __name__ == "__main__":
 
-fc = Linear(128, 3)
-logits = fc.forward(x)
-probs = softmax(logits)
-loss = cross_entropy_loss(probs, y_true)
+    x = np.array([1, 2]).reshape(1, -1)
+    targets = np.array([2]) 
 
-# Compute gradients
-dW, db = compute_gradients(fc.last_input, probs, y_true)
+    fc = Linear(in_features=2, out_features=3)
+    logits = fc.forward(x)
+    print(logits)
 
-# Update weights and biases
-fc.backward(dW, db)
+    ce = CrossEntropy(num_classes=3)
+    loss = ce.forward(logits, targets)
+    print(loss)
 
-print("Loss:", loss)
-print("Updated Weights:", fc.weights)
-print("Updated Biases:", fc.biases)
+    grad_logits = ce.backward()
+    grad_x, grad_weights = fc.backward(grad_logits)
+    print(grad_logits)
+    print(grad_weights)
+    print(grad_x)
+    print()
+
+    x_ = torch.tensor([1, 2]).unsqueeze(0).to(torch.float32)
+    x_ = x_.requires_grad_(True)
+    targets = torch.tensor([2])
+    fc_ = nn.Linear(in_features=2, out_features=3, bias=False)
+    fc_.weight = torch.nn.Parameter(torch.tensor(fc.weights.T).to(torch.float32))
+    logits_ = fc_(x_)
+    logits_.retain_grad()
+    print(logits_)
+    
+    ce_ = nn.CrossEntropyLoss()
+    loss_ = ce_(logits_, targets)
+    print(loss_)
+
+    loss_.backward()
+    print(logits_.grad)
+    print(fc_.weight.grad)
+    print(x_.grad)

@@ -1,22 +1,30 @@
 import numpy as np
 
-def softmax(logits):
-    exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
-    return exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
-
-def cross_entropy_loss(probs, targets):
-    num_samples = targets.shape[0]
-    correct_logprobs = -np.log(probs[range(num_samples), targets])
-    loss = np.sum(correct_logprobs) / num_samples
-    return loss
-
-def compute_gradients(logits, probs, targets):
-    num_samples = targets.shape[0]
-    dscores = probs
-    dscores[range(num_samples), targets] -= 1
-    dscores /= num_samples
+class CrossEntropy:
+    def __init__(self, num_classes):
+        self.num_classes = num_classes
+        self.grad = None
     
-    dW = np.dot(logits.T, dscores)
-    db = np.sum(dscores, axis=0, keepdims=True)
+    def one_hot_encode(self, targets):
+        one_hot = np.zeros((targets.shape[0], self.num_classes))
+        one_hot[np.arange(targets.shape[0]), targets] = 1
+        return np.float32(one_hot)
+        
+    def logsumexp(self, x):
+        c = x.max(axis=1, keepdims=True)
+        return c + np.log(np.sum(np.exp(x - c), axis=1, keepdims=True))
+
+    def softmax(self, x):
+        return np.exp(x - self.logsumexp(x))
+
+    def forward(self, logits, targets):
+        self.logits = logits
+        self.probs = self.softmax(logits)
+        self.encoded_targets = self.one_hot_encode(targets)
+        result = self.encoded_targets * np.log(self.probs) + (1 - self.encoded_targets) * np.log(1 - self.probs)
+        loss = -np.sum(result)
+        return loss / 2
     
-    return dW, db
+    def backward(self):
+        self.grad = self.probs - self.encoded_targets
+        return self.grad

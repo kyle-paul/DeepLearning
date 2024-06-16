@@ -19,7 +19,7 @@ class Conv2d():
     def __init__(self, in_channels, out_channels, padding, stride, kernel_size):
         super().__init__()
     
-        self.weight = initialize_weight(in_channels, out_channels, kernel_size)
+        self.weights = initialize_weight(in_channels, out_channels, kernel_size)
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.padding = padding
@@ -32,19 +32,14 @@ class Conv2d():
         else:
             self.padded_x = self.x
         
-        # Get the dimensions of the input
         self.batch_size, _, in_height, in_width = self.x.shape
-        
-        # Calculate the dimensions of the output array
         self.out_height = (in_height + 2*self.padding - self.kernel_size) // self.stride + 1
         self.out_width = (in_width + 2*self.padding - self.kernel_size) // self.stride + 1
-        
-        # Initialize the output array
         self.output = np.zeros((self.batch_size, self.out_channels, self.out_height, self.out_width))
         
     def backpropagation(self, grad_z):
-        grad_padded_x = np.float32(np.zeros_like(self.padded_x))
-        grad_weight = np.float32(np.zeros_like(self.weight))
+        self.grad_padded_x = np.float32(np.zeros_like(self.padded_x))
+        self.grad_weights = np.float32(np.zeros_like(self.weights))
 
         for b in range(self.batch_size):
             for o in range(self.out_channels):
@@ -55,13 +50,13 @@ class Conv2d():
                         start_j = j * self.stride
                         end_j = start_j + self.kernel_size
                         patch = self.padded_x[b, :, start_i:end_i, start_j:end_j]
-                        grad_weight[o, :] += patch * grad_z[b, o, i, j]
-                        grad_padded_x[b, :, start_i:end_i, start_j:end_j] += self.weight[o, :] * grad_z[b, o, i, j]
+                        self.grad_weight[o, :] += patch * grad_z[b, o, i, j]
+                        self.grad_padded_x[b, :, start_i:end_i, start_j:end_j] += self.weights[o, :] * grad_z[b, o, i, j]
                         
         if self.padding > 0:
-            grad_padded_x = grad_padded_x[:, :, self.padding:-self.padding, self.padding:-self.padding]
+            self.grad_padded_x = self.grad_padded_x[:, :, self.padding:-self.padding, self.padding:-self.padding]
 
-        return grad_padded_x, grad_weight
+        return self.grad_padded_x, self.grad_weight
         
     def forward(self, x):
         self.x = x
@@ -76,6 +71,6 @@ class Conv2d():
                         start_j = j * self.stride
                         end_j = start_j + self.kernel_size
                         patch = self.padded_x[b, :, start_i:end_i, start_j:end_j]
-                        self.output[b, o, i, j] += np.sum(patch * self.weight[o, :])
+                        self.output[b, o, i, j] += np.sum(patch * self.weights[o, :])
     
         return self.output
