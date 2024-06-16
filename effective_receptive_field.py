@@ -1,116 +1,51 @@
 import torch
-import torch.nn.functional as F
-import timm
+import torch.nn as nn
 import numpy as np
-import matplotlib.pyplot as plt
-import gradio as gr
 from PIL import Image
+from modules.convolution import Conv2d
 
-class ERF:
-    def __init__(self):
-        self.model = None
-        self.list_models = timm.list_models()
-        
-        with gr.Blocks() as self.app:
-            with gr.Tab("Effective Receptive Field"):
-                self.read_labels()
-                self.tab1 = gr.Interface(
-                    title="Effective Receptive Field",
-                    fn=self.deep_visualization,
-                    inputs = [
-                        gr.Image(type="pil"),
-                        gr.Slider(minimum=0, maximum=1, value=0.15, label="Positive Thresholding (%)"),
-                        gr.Slider(minimum=0, maximum=1, value=0.15, label="Negative Thresholding (%)"),
-                        gr.Slider(minimum=0, maximum=1, value=0.6, label="Opacity Controller"),
-                        gr.Dropdown(choices=self.list_models, value="resnet50", label="Select models")
-                    ],
-                    outputs=[
-                        gr.Image(label="Receptive Field Analysis"),
-                        gr.Label(num_top_classes=10, label="Classification"),
-                    ],
-                    examples=[
-                        ["samples/cock.jpg", 0.15, 0.15, 0.6, "resnet50"],
-                        ["samples/cats.jpg", 0.15, 0.15, 0.6, "vgg16"],
-                        ["samples/goldfish.jpeg", 0.15, 0.15, 0.6, "densenet161"]
-                    ],
-                )
-                
-            with gr.Tab("Deep Visualization"):
-                gr.Markdown("Deep Visualization")
-        
+def effective_receptive_field_torch(x):
+    x = torch.tensor(x).to(torch.float32).requires_grad_(True)
+    conv = nn.Conv2d(in_channels=3, out_channels=10,
+                     kernel_size=3, stride=1,
+                     padding=0, bias=False)
+    z = conv(x)
+    loss_vec = z[:, :, z.size(-2)//2, z.size(-1)//2]
+    loss = torch.sum(loss_vec)
+    loss.backward()
     
-    def read_labels(self):
-        with open("assets/imagenet1k.txt", 'r') as file:
-            lines = file.readlines()
-            self.labels = [line.strip().strip('"')[:-2] for line in lines]
+    grad_x =  x.grad[0, 0].detach().numpy()
+    grad_weight = conv.weight.grad[0, 0].detach().numpy()
+    print(grad_x[112])
+    print(grad_weight) 
     
-    def initialize_model(self):
-        self.model = timm.create_model(self.option, pretrained=True).cuda()
-        
-    def preprocess(self):
-        preprocess_cfg = timm.data.resolve_data_config(self.model.pretrained_cfg)
-        self.transform = timm.data.create_transform(**preprocess_cfg)
-        self.model.eval()
-        
 
-    def deep_visualization(self, image, pos_thres, neg_thres, opacity, option):
-        self.image = image
-        self.opacity = opacity
-        self.pos_thres = pos_thres
-        self.neg_thres = neg_thres
-        self.option = option
-        
-        # Intialize model and preprocessor
-        self.initialize_model()
-        self.preprocess()
-        
-        # Forward pass
-        x = self.transform(image).unsqueeze(0).requires_grad_(True).cuda()
-        x.retain_grad()
-        y = self.model(x)
-        z = self.model.forward_features(x)
-        
-        # Results
-        probs = F.softmax(y, dim=1).flatten()
-        confidences = {self.labels[i]: float(probs[i]) for i in range(1000)}
-        
-        # Effective receptive field
-        self.eff_recep_field(x, z)
-        eff_recep_field = Image.open(".cache/eff_recep_field.png")
-        
-        return eff_recep_field, confidences
-                
+def effective_receptive_field_np(x):
+    conv = Conv2d(in_channels=3, out_channels=10, padding=0, stride=1, kernel_size=3)
+    z = conv.forward(x)
     
-    def eff_recep_field(self, x, z):
-        loss_vec = z[0, :, z.size(-2)//2, z.size(-1)//2]
-        loss = torch.sum(loss_vec)
-        loss.backward()
-        
-        # take the mean gradient between channels
-        gradients = torch.mean(x.grad[0], dim=0).detach().cpu().numpy()
-
-        # seperate pos/neg to avoid imbalance
-        pos_grads = np.where(gradients >= 0, gradients, 0)
-        neg_grads = np.where(gradients < 0, gradients, 0)
-        neg_grads = np.abs(neg_grads)
-
-        # Threhold -> binary
-        pos_grads = np.where(pos_grads >= np.max(pos_grads) * self.pos_thres, 1, 0)
-        neg_grads = np.where(neg_grads >= np.max(neg_grads) * self.neg_thres, 1, 0)
-        
-        plt.imshow(np.array(self.image.resize((224, 224))))
-        plt.imshow(pos_grads, alpha=self.opacity, cmap="gray")
-        plt.imshow(neg_grads, alpha=self.opacity, cmap="gray")
-        
-        plt.axis('off')
-        plt.savefig('.cache/eff_recep_field.png', bbox_inches='tight', pad_inches=0)
-        
+    grad_z = np.zeros_like(z)
+    grad_z[:, :, z.shape[-2]//2, z.shape[-1]//2] = 1
     
-    def run(self):
-        self.app.launch(debug=True)
-        
-
+    grad_x, grad_weight = conv.backpropagation(np.float32(grad_z))
+    print(grad_x[0, 0, 112])
+    print(grad_weight[0, 0]) 
     
 if __name__ == "__main__":
-    erf = ERF()
-    erf.run()
+    x = np.array([[
+        [1, 2, 3, 4, 5],
+        [7, 8, 9, 2, 1],
+        [5, 6, 7, 8, 1],
+        [3, 2, 1, 6, 2],
+        [2, 4, 5, 8, 9],
+    ]])
+    x = np.expand_dims(np.float32(x), 1)
+    
+    image = Image.open("samples/cock.jpg").resize((224, 224))
+    x = np.array(image)[np.newaxis, :, :]
+    x = np.transpose(x, (0, 3, 1, 2))
+
+
+    effective_receptive_field_np(x)
+    print()
+    effective_receptive_field_torch(x)

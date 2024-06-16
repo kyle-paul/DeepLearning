@@ -6,14 +6,12 @@ with open('css/style.css', 'r') as file:
 with open('js/scripts.js', 'r') as file:
     js = file.read()  
   
-  
-print(css)
+
 head = f"""
 <script>
     {js}
 </script> 
-"""
-    
+"""  
     
 embeddings = ["emb1", "emb2", "emb3"]
 models = ["resnet50", "densenet161", "vgg16"]
