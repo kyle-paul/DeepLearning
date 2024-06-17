@@ -73,8 +73,6 @@ for epoch in range(epochs):
         optimizer.zero_grad()
         input = input.cuda()
         target = target.cuda()
-        print(target.shape, target)
-        exit()
         logits = model(input)
         loss = loss_func(logits, target)
         total_loss += loss.item()

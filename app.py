@@ -95,12 +95,12 @@ class ERF:
         neg_grads = np.abs(neg_grads)
 
         # Threhold -> binary
-        pos_grads = np.where(pos_grads >= np.max(pos_grads) * self.pos_thres, 1, 0)
-        neg_grads = np.where(neg_grads >= np.max(neg_grads) * self.neg_thres, 1, 0)
+        pos_grads = np.where(pos_grads >= np.max(pos_grads) * self.pos_thres, pos_grads, 0)
+        neg_grads = np.where(neg_grads >= np.max(neg_grads) * self.neg_thres, neg_grads, 0)
         
         plt.imshow(np.array(self.image.resize((224, 224))))
-        plt.imshow(pos_grads, alpha=self.opacity, cmap="gray")
-        plt.imshow(neg_grads, alpha=self.opacity, cmap="gray")
+        plt.imshow(pos_grads, alpha=self.opacity, cmap="nipy_spectral")
+        plt.imshow(neg_grads, alpha=self.opacity, cmap="nipy_spectral")
         
         plt.axis('off')
         plt.savefig('.cache/eff_recep_field.png', bbox_inches='tight', pad_inches=0)
