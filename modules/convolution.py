@@ -6,13 +6,13 @@ def initialize_weight(in_channels, out_channels, kernel_size):
     gain = np.sqrt(2.0 / (1 + 0**2)) 
     
     bound = gain * np.sqrt(3.0 / fan_in)
-    weight = np.random.uniform(
+    weights = np.random.uniform(
         -bound, bound, 
         size=(out_channels, in_channels, 
         kernel_size, kernel_size)
     ).astype(np.float32)
 
-    return weight
+    return weights
 
 
 class Conv2d():
@@ -50,13 +50,13 @@ class Conv2d():
                         start_j = j * self.stride
                         end_j = start_j + self.kernel_size
                         patch = self.padded_x[b, :, start_i:end_i, start_j:end_j]
-                        self.grad_weight[o, :] += patch * grad_z[b, o, i, j]
+                        self.grad_weights[o, :] += patch * grad_z[b, o, i, j]
                         self.grad_padded_x[b, :, start_i:end_i, start_j:end_j] += self.weights[o, :] * grad_z[b, o, i, j]
                         
         if self.padding > 0:
             self.grad_padded_x = self.grad_padded_x[:, :, self.padding:-self.padding, self.padding:-self.padding]
 
-        return self.grad_padded_x, self.grad_weight
+        return self.grad_padded_x, self.grad_weights
         
     def forward(self, x):
         self.x = x
